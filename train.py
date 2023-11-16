@@ -7,21 +7,23 @@ import torch
 import argparse
 import torch.optim as optim
 import torch.nn.functional as F
+from torchvision import transforms
 
 from dataset import *
 from utils import *
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1, 2, 3'
-
+INPUT_SIZE = (448, 448)
 def train():
     parser = argparse.ArgumentParser('FGVC', add_help=False)
     parser.add_argument('--epochs', type=int, default=300, help="training epochs")
     parser.add_argument('--batch_size', type=int, default=16, help="batch size for training")
     parser.add_argument('--resume', type=str, default="", help="resume from saved model path")
-    parser.add_argument('--dataset_name', type=str, default="cub", help="dataset name")
+    parser.add_argument('--dataset_name', type=str, default="MVI", help="dataset name")
     parser.add_argument('--topn', type=int, default=4, help="parts number")
     parser.add_argument('--backbone', type=str, default="resnet50", help="backbone")
     parser.add_argument('--lr', type=float, default=2e-3, help="learning rate")
+    parser.add_argument('--fold', type=int, default=0)
     args, _ = parser.parse_known_args()
     epochs = args.epochs
     batch_size = args.batch_size
@@ -30,7 +32,8 @@ def train():
     data_config = { "air": [100, "../Data/fgvc-aircraft-2013b"], 
                     "car": [196, "../Data/stanford_cars"], 
                     "dog": [120, "../Data/StanfordDogs"],
-                    "cub": [200, "../Data/CUB_200_2011"], 
+                    "cub": [200, "../Data/CUB_200_2011"],
+                    "MVI": [2, "nothing"] 
                     }
     dataset_name = args.dataset_name
     classes_num, data_root = data_config[dataset_name]
@@ -46,9 +49,26 @@ def train():
     elif dataset_name == 'cub':
         trainset = CUB(root=data_root, is_train=True, data_len=None)
         testset = CUB(root=data_root, is_train=False, data_len=None)
+    elif dataset_name == 'MVI':
+        _transform_train = transforms.Compose([
+            transforms.Resize((550, 550)),
+            transforms.RandomCrop(INPUT_SIZE, padding=8),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        ])
+        _transform_test = transforms.Compose([
+            transforms.Resize((550, 550)),
+            transforms.CenterCrop(INPUT_SIZE),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        ])
+        trainset = MVI('train', args.fold, _transform_train)
+        testset = MVI('test', args.fold, _transform_test)
+        
     num_workers = 16 if torch.cuda.is_available() else 0
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers,drop_last=False)
-
+    
     ## Output
     topn = args.topn
     exp_dir = dataset_name + '_' + args.backbone + '_' + str(topn)

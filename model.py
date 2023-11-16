@@ -19,7 +19,7 @@ class PMG(nn.Module):
 
         self.proposal_net = ProposalNet(self.num_ftrs)
         _, edge_anchors, _ = generate_default_anchor_maps()
-        self.edge_anchors = (edge_anchors+self.pad_side).astype(np.int)
+        self.edge_anchors = (edge_anchors+self.pad_side).astype(np.int64)
         
         # mlp for regularization
         self.reg_mlp1 = nn.Sequential(
@@ -102,7 +102,7 @@ class PMG(nn.Module):
                     np.arange(0, len(x)).reshape(-1, 1)), 
                     axis=1) for x in rpn_score.data.cpu().numpy()]
         top_n_cdds = np.array([hard_nms(x, self.topn, iou_thresh=0.25) for x in all_cdds])
-        top_n_index = top_n_cdds[:, :, -1].astype(np.int)
+        top_n_index = top_n_cdds[:, :, -1].astype(np.int64)
         top_n_index = torch.from_numpy(top_n_index).long().to(x.device)
         top_n_prob = torch.gather(rpn_score, dim=1, index=top_n_index)
         
@@ -111,7 +111,7 @@ class PMG(nn.Module):
         x_pad = F.pad(x, (self.pad_side, self.pad_side, self.pad_side, self.pad_side), mode='constant', value=0)
         for i in range(batch):
             for j in range(self.topn):
-                [y0, x0, y1, x1] = top_n_cdds[i, j, 1:5].astype(np.int)
+                [y0, x0, y1, x1] = top_n_cdds[i, j, 1:5].astype(np.int64)
                 part_imgs[i:i + 1, j] = F.interpolate(x_pad[i:i + 1, :, y0:y1, x0:x1], 
                                                         size=(224, 224), mode='bilinear',
                                                         align_corners=True)

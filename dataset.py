@@ -2,11 +2,50 @@ import numpy as np
 # import scipy.misc as reader
 import imageio as reader
 import os
+import json
+import torch
 import scipy.io as sio
 from PIL import Image
 from torchvision import transforms
 # from config import INPUT_SIZE
 INPUT_SIZE = (448, 448)
+
+class MVI():
+    def __init__(self, kind, fold, transform):
+        self.kind = kind
+        self.fold = fold
+        self.transform = transform
+        self._get_data()
+        self.lables = np.array(self.labels)
+        self.labels = torch.LongTensor(self.labels)
+    def _get_data(self):
+        json_file = 'crop_' + self.kind + '_fold' + str(self.fold) + '.json'
+        with open(os.path.join('/media/ilab/lxy/MVI_grading_2023/data/folds', json_file), 'r') as inf:
+            data_dic = json.load(inf)
+        self.labels = list()
+        self.filenames = list()
+        self.subjects = list()
+        self.layers = list()
+        for key, value in data_dic.items():
+            _, classes = key.split('M')
+            if classes == '0':
+                continue
+            for i in range(3):
+                self.layers.append(i)
+                self.labels.append(int(classes) - 1)
+                self.filenames.append(value['T1'].split('.')[0])
+                self.subjects.append(key)
+
+    def __getitem__(self, index):
+        file_name= self.filenames[index]
+        label = np.array(self.labels[index]).astype(np.int64)
+        file_name = f'{file_name}_{str(self.layers[index])}.jpg'
+        image = Image.open(os.path.join('/media/ilab/lxy/MVI_grading_2023/data_content/crop_img_224', file_name)).convert('RGB')
+        image = self.transform(image)
+        return image, label
+    
+    def __len__(self):
+        return len(self.filenames)
 
 class CUB():
     def __init__(self, root, is_train=True, data_len=None):
